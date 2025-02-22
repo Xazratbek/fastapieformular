@@ -213,13 +213,97 @@ async def get_db():
 
 
 
+#####
+
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.future import select
+from sqlalchemy import text  # text() funksiyasini import qilamiz
+from sqlalchemy.orm import sessionmaker
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import date
+import asyncio
+
+app = FastAPI()
+
+# SQLAlchemy uchun asosiy sozlashlar
+DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+engine = create_async_engine(DATABASE_URL, echo=True)
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+# Pydantic modellari
+class RegionBase(BaseModel):
+    name: str
+
+class RegionCreate(RegionBase):
+    pass
+
+class RegionOut(RegionBase):
+    id: int
+
+class DistrictBase(BaseModel):
+    name: str
+    region_id: int
+
+class DistrictCreate(DistrictBase):
+    pass
+
+class DistrictOut(DistrictBase):
+    id: int
+
+class SchoolBase(BaseModel):
+    name: str
+    district_id: int
+
+class SchoolCreate(SchoolBase):
+    pass
+
+class SchoolOut(SchoolBase):
+    id: int
+
+class LibrarianBase(BaseModel):
+    ism: str
+    familiya: str
+    telefon_raqam: str
+    school_id: int
+
+class LibrarianCreate(LibrarianBase):
+    pass
+
+class LibrarianOut(LibrarianBase):
+    id: int
+
+class FormularBase(BaseModel):
+    ism: str
+    familiya: str
+    tugilgan_sanasi: date
+    role: str
+    school_id: int
+    manzili: str
+    telefon_raqam: str
+    librarian_id: int
+    sinf: Optional[int] = None
+    sinf_type: Optional[str] = None
+
+class FormularCreate(FormularBase):
+    pass
+
+class FormularOut(FormularBase):
+    id: int
+
+# Database sessionni olish uchun dependency
+async def get_db():
+    async with async_session() as session:
+        yield session
+
 # ============================================================================
 # Regions Endpointlari
 # ============================================================================
 @app.get("/regions", response_model=List[RegionOut])
 async def list_regions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM regions")
-    return result.scalars().all()
+    result = await db.execute(text("SELECT * FROM regions"))
+    return result.fetchall()
 
 @app.get("/regions/{region_id}", response_model=RegionOut)
 async def get_region(region_id: int, db: AsyncSession = Depends(get_db)):
@@ -260,8 +344,8 @@ async def delete_region(region_id: int, db: AsyncSession = Depends(get_db)):
 # ============================================================================
 @app.get("/districts", response_model=List[DistrictOut])
 async def list_districts(db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM districts")
-    return result.scalars().all()
+    result = await db.execute(text("SELECT * FROM districts"))
+    return result.fetchall()
 
 @app.get("/districts/{district_id}", response_model=DistrictOut)
 async def get_district(district_id: int, db: AsyncSession = Depends(get_db)):
@@ -272,8 +356,11 @@ async def get_district(district_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/regions/{region_id}/districts", response_model=List[DistrictOut])
 async def get_districts_by_region(region_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM districts WHERE region_id = :region_id", {"region_id": region_id})
-    return result.scalars().all()
+    result = await db.execute(
+        text("SELECT * FROM districts WHERE region_id = :region_id"),
+        {"region_id": region_id}
+    )
+    return result.fetchall()
 
 @app.post("/districts", response_model=DistrictOut)
 async def create_district(district: DistrictCreate, db: AsyncSession = Depends(get_db)):
@@ -316,8 +403,8 @@ async def delete_district(district_id: int, db: AsyncSession = Depends(get_db)):
 # ============================================================================
 @app.get("/schools", response_model=List[SchoolOut])
 async def list_schools(db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM schools")
-    return result.scalars().all()
+    result = await db.execute(text("SELECT * FROM schools"))
+    return result.fetchall()
 
 @app.get("/schools/{school_id}", response_model=SchoolOut)
 async def get_school(school_id: int, db: AsyncSession = Depends(get_db)):
@@ -328,8 +415,11 @@ async def get_school(school_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/districts/{district_id}/schools", response_model=List[SchoolOut])
 async def get_schools_by_district(district_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM schools WHERE district_id = :district_id", {"district_id": district_id})
-    return result.scalars().all()
+    result = await db.execute(
+        text("SELECT * FROM schools WHERE district_id = :district_id"),
+        {"district_id": district_id}
+    )
+    return result.fetchall()
 
 @app.post("/schools", response_model=SchoolOut)
 async def create_school(school: SchoolCreate, db: AsyncSession = Depends(get_db)):
@@ -372,8 +462,8 @@ async def delete_school(school_id: int, db: AsyncSession = Depends(get_db)):
 # ============================================================================
 @app.get("/librarians", response_model=List[LibrarianOut])
 async def list_librarians(db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM librarians")
-    return result.scalars().all()
+    result = await db.execute(text("SELECT * FROM librarians"))
+    return result.fetchall()
 
 @app.get("/librarians/{librarian_id}", response_model=LibrarianOut)
 async def get_librarian(librarian_id: int, db: AsyncSession = Depends(get_db)):
@@ -384,8 +474,11 @@ async def get_librarian(librarian_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/schools/{school_id}/librarians", response_model=List[LibrarianOut])
 async def get_librarians_by_school(school_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM librarians WHERE school_id = :school_id", {"school_id": school_id})
-    return result.scalars().all()
+    result = await db.execute(
+        text("SELECT * FROM librarians WHERE school_id = :school_id"),
+        {"school_id": school_id}
+    )
+    return result.fetchall()
 
 @app.post("/librarians", response_model=LibrarianOut)
 async def create_librarian(librarian: LibrarianCreate, db: AsyncSession = Depends(get_db)):
@@ -440,8 +533,8 @@ async def delete_librarian(librarian_id: int, db: AsyncSession = Depends(get_db)
 # ============================================================================
 @app.get("/formulars", response_model=List[FormularOut])
 async def list_formulars(db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM formulars")
-    return result.scalars().all()
+    result = await db.execute(text("SELECT * FROM formulars"))
+    return result.fetchall()
 
 @app.get("/formulars/{formular_id}", response_model=FormularOut)
 async def get_formular(formular_id: int, db: AsyncSession = Depends(get_db)):
@@ -452,13 +545,19 @@ async def get_formular(formular_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/librarians/{librarian_id}/formulars", response_model=List[FormularOut])
 async def get_formulars_by_librarian(librarian_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM formulars WHERE librarian_id = :librarian_id", {"librarian_id": librarian_id})
-    return result.scalars().all()
+    result = await db.execute(
+        text("SELECT * FROM formulars WHERE librarian_id = :librarian_id"),
+        {"librarian_id": librarian_id}
+    )
+    return result.fetchall()
 
-@app.get("/schools/{school_id}/formulars", response_model=List[FormularOut])
+@app.get("/schools/{school_id}/formulars",response_model=List[FormularOut])
 async def get_formulars_by_school(school_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute("SELECT * FROM formulars WHERE school_id = :school_id", {"school_id": school_id})
-    return result.scalars().all()
+    result = await db.execute(
+        text("SELECT * FROM formulars WHERE school_id = :school_id"),
+        {"school_id": school_id}
+    )
+    return result.fetchall()
 
 @app.post("/formulars", response_model=FormularOut)
 async def create_formular(formular: FormularCreate, db: AsyncSession = Depends(get_db)):
@@ -510,5 +609,25 @@ async def update_formular(formular_id: int, formular: FormularCreate, db: AsyncS
     db_formular.school_id = formular.school_id
     db_formular.manzili = formular.manzili
     db_formular.telefon_raqam = formular.telefon_raqam
-    db_formular.librarian_id = fo
+    db_formular.librarian_id = formular.librarian_id
+    db_formular.sinf = formular.sinf
+    db_formular.sinf_type = formular.sinf_type
+    await db.commit()
+    await db.refresh(db_formular)
+    return db_formular
 
+@app.delete("/formulars/{formular_id}")
+async def delete_formular(formular_id: int, db: AsyncSession = Depends(get_db)):
+    db_formular = await db.get(Formular, formular_id)
+    if not db_formular:
+        raise HTTPException(status_code=404, detail="Formular not found")
+    await db.delete(db_formular)
+    await db.commit()
+    return {"detail": "Formular deleted"}
+
+# ============================================================================
+# Run the FastAPI app
+# ============================================================================
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
